@@ -1,0 +1,7 @@
+REMARK     OPTIMIZED COORDINATES
+COMPND      Water
+HETATM    1  O             1      0.314  -0.156   0.063  1.00  0.00           O  
+HETATM    2  H             1      0.264   1.671   0.508  1.00  0.00           H  
+HETATM    3  H             1      1.389  -0.762   1.481  1.00  0.00           H  
+TER           4                 1
+END
