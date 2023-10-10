@@ -1,8 +1,4 @@
-
-
-
 import numpy as np
-from scipy.optimize import minimize
 
 EPSILON = 0.1  # Energy minimum [kJ/mol]
 SIGMA = 3.4  # Distance at which the potential energy is zero [Angstrom]
@@ -21,6 +17,16 @@ class Molecule:
     def add_atom(self, atom):
         self.atoms.append(atom)
 
+class System:
+    def __init__(self):
+        self.molecules = []
+
+    def add_molecule(self, molecule):
+        self.molecules.append(molecule)
+
+    def get_all_atoms(self):
+        return [atom for molecule in self.molecules for atom in molecule.atoms]
+
 def parse_pdb(file_path):
     molecule = Molecule()
     with open(file_path, 'r') as file:
@@ -33,50 +39,28 @@ def parse_pdb(file_path):
                 molecule.add_atom(Atom(symbol, x, y, z))
     return molecule
 
-def energy_function(coords, molecule):
-    """
-    Calculate the potential energy of a molecule based on Lennard-Jones and Coulomb potential.
-    :param coords: 1D array of atomic coordinates [x1, y1, z1, x2, y2, z2, ...]
-    :param molecule: Molecule object
-    :return: Total potential energy [kJ/mol]
-    """
-    energy = 0.0
-    num_atoms = len(molecule.atoms)
-    reshaped_coords = np.reshape(coords, (num_atoms, 3))
-
-    for i in range(num_atoms):
-        molecule.atoms[i].coordinate = reshaped_coords[i]
-
-    for i in range(num_atoms):
-        for j in range(i + 1, num_atoms):
-            distance = np.linalg.norm(molecule.atoms[i].coordinate - molecule.atoms[j].coordinate)
-
-            # Lennard-Jones potential
-            energy += lennard_jones_potential(distance, EPSILON, SIGMA)
-
-            # Coulomb's potential
-            energy += coulomb_potential(molecule.atoms[i].charge, molecule.atoms[j].charge, distance)
-
-    return energy
-
 def coulomb_potential(q1, q2, r):
-    """
-    Calculate Coulomb's potential between two charged atoms.
-    :param q1, q2: partial charges of the atoms [e]
-    :param r: distance between atoms [Angstrom]
-    :return: Coulomb's potential [kJ/mol]
-    """
     return (COULOMB_CONSTANT * q1 * q2) / r
 
 def lennard_jones_potential(r, epsilon, sigma):
-    """
-    Calculate Lennard-Jones potential between two atoms at distance r.
-    :param r: distance between two atoms [Angstrom]
-    :param epsilon: well depth [kJ/mol]
-    :param sigma: finite distance at which the inter-particle potential is zero [Angstrom]
-    :return: Lennard-Jones potential [kJ/mol]
-    """
     return 4 * epsilon * ((sigma / r)**12 - (sigma / r)**6)
+
+def energy_function_system(coords, system):
+    energy = 0.0
+    all_atoms = system.get_all_atoms()
+    num_atoms = len(all_atoms)
+    reshaped_coords = np.reshape(coords, (num_atoms, 3))
+
+    for i, atom in enumerate(all_atoms):
+        atom.coordinate = reshaped_coords[i]
+
+    for i in range(num_atoms):
+        for j in range(i + 1, num_atoms):
+            distance = np.linalg.norm(all_atoms[i].coordinate - all_atoms[j].coordinate)
+            energy += lennard_jones_potential(distance, EPSILON, SIGMA)
+            energy += coulomb_potential(all_atoms[i].charge, all_atoms[j].charge, distance)
+
+    return energy
 
 def crossover(mol1_coords, mol2_coords):
     return (mol1_coords + mol2_coords) / 2
@@ -86,51 +70,72 @@ def mutate(mol_coords, mutation_rate=0.1, mutation_scale=0.1):
     mol_coords += mutation * (np.random.rand() < mutation_rate)
     return mol_coords
 
-# Example Genetic Algorithm
-def genetic_algorithm(molecule, generations=10000, population_size=1000, mutation_rate=0.1):
-    population = [np.array([atom.coordinate for atom in molecule.atoms]).flatten() for _ in range(population_size)]
-    energies = [energy_function(ind, molecule) for ind in population]
+def genetic_algorithm(system, generations=1000, population_size=100, mutation_rate=0.1):
+    initial_coords = np.array([atom.coordinate for atom in system.get_all_atoms()]).flatten()
+    population = [initial_coords + (np.random.rand(*initial_coords.shape) - 0.5) for _ in range(population_size)]
+    energies = [energy_function_system(ind, system) for ind in population]
     
     for _ in range(generations):
-        # Selection: top half of the molecules are selected
         selected_indices = np.argsort(energies)[:population_size//2]
         selected_population = [population[i] for i in selected_indices]
         
-        # Crossover: generating offspring by mixing coordinates
         offspring = []
         for i in range(0, len(selected_population), 2):
-            if i+1 < len(selected_population):
+            if i + 1 < len(selected_population):
                 offspring.append(crossover(selected_population[i], selected_population[i+1]))
             else:
                 offspring.append(crossover(selected_population[i], selected_population[0]))
-        
-        # Mutation: introducing minor random alterations
+
         offspring = [mutate(ind, mutation_rate) for ind in offspring]
-        
-        # Replacement: replacing the old population with offspring
         population = selected_population + offspring
+        energies = [energy_function_system(ind, system) for ind in population]
         
-        # Recalculate energies
-        energies = [energy_function(ind, molecule) for ind in population]
-        
-        # Logging the current best energy value
         print("Current Best Energy:", min(energies))
     
-    # Returning the best conformation
     best_index = np.argmin(energies)
-    best_coords_reshaped = np.reshape(population[best_index], (len(molecule.atoms), 3))
+    best_coords_reshaped = np.reshape(population[best_index], (len(system.get_all_atoms()), 3))
     
-    for i, atom in enumerate(molecule.atoms):
+    for i, atom in enumerate(system.get_all_atoms()):
         atom.coordinate = best_coords_reshaped[i]
     
-    return molecule
+    return system
 
-# Example usage
+def export_pdb(file_path, system, remark="OPTIMIZED COORDINATES"):
+    """
+    Export the atomic coordinates in PDB format.
+    
+    :param file_path: The path to the file where the coordinates will be saved.
+    :param system: The system containing the atomic coordinates.
+    :param remark: An optional remark line.
+    """
+    with open(file_path, "w") as file:
+        file.write("REMARK     {}\n".format(remark))
+        
+        atom_index = 1  # PDB files typically start numbering atoms at 1
+        for molecule in system.molecules:
+            for atom in molecule.atoms:
+                # PDB Format: http://www.wwpdb.org/documentation/file-format-content/format33/sect9.html
+                file.write(
+                    "{:<6}{:>5} {:<4}{:<1}{:<3} {:<1}{:>4}{:<1}   {:>8.3f}{:>8.3f}{:>8.3f}{:>6.2f}{:>6.2f}          {:>2}{:>2}\n".format(
+                        "ATOM", atom_index, atom.symbol, "", "RES", "A", 1, "",
+                        atom.coordinate[0], atom.coordinate[1], atom.coordinate[2],
+                        1.00,  # Occupancy - placeholder value
+                        0.00,  # Temperature factor - placeholder value
+                        atom.symbol, ""  # Element symbol and charge
+                    )
+                )
+                atom_index += 1
+
+
 if __name__ == "__main__":
-    # Replace with your PDB file path
-    molecule = parse_pdb("water.pdb")
+    water = parse_pdb("water.pdb")  # Replace with your PDB file path
+    octane = parse_pdb("octane.pdb")  # Replace with your PDB file path
     
-    # Optimize using the genetic algorithm
-    optimized_molecule = genetic_algorithm(molecule)
+    system = System()
+    system.add_molecule(water)
+    system.add_molecule(octane)
+
+    optimized_system = genetic_algorithm(system)
     
-    # At this point, `optimized_molecule` contains the optimized atom coordinates
+    # Exporting the optimized coordinates
+    export_pdb("optimized_coordinates.pdb", optimized_system)
