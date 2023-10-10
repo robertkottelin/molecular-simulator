@@ -70,7 +70,7 @@ def mutate(mol_coords, mutation_rate=0.1, mutation_scale=0.1):
     mol_coords += mutation * (np.random.rand() < mutation_rate)
     return mol_coords
 
-def genetic_algorithm(system, generations=1000, population_size=100, mutation_rate=0.1):
+def genetic_algorithm(system, generations=10000, population_size=100, mutation_rate=0.1):
     initial_coords = np.array([atom.coordinate for atom in system.get_all_atoms()]).flatten()
     population = [initial_coords + (np.random.rand(*initial_coords.shape) - 0.5) for _ in range(population_size)]
     energies = [energy_function_system(ind, system) for ind in population]
