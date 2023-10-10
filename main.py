@@ -1,4 +1,6 @@
 import numpy as np
+import concurrent.futures
+
 
 EPSILON = 0.1  # Energy minimum [kJ/mol]
 SIGMA = 3.4  # Distance at which the potential energy is zero [Angstrom]
@@ -70,10 +72,16 @@ def mutate(mol_coords, mutation_rate=0.1, mutation_scale=0.1):
     mol_coords += mutation * (np.random.rand() < mutation_rate)
     return mol_coords
 
-def genetic_algorithm(system, generations=10000, population_size=100, mutation_rate=0.1):
+
+def evaluate_population(population, system):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(energy_function_system, ind, system) for ind in population]
+        return [f.result() for f in concurrent.futures.as_completed(futures)]
+
+def genetic_algorithm(system, generations=10000, population_size=10, mutation_rate=0.1):
     initial_coords = np.array([atom.coordinate for atom in system.get_all_atoms()]).flatten()
     population = [initial_coords + (np.random.rand(*initial_coords.shape) - 0.5) for _ in range(population_size)]
-    energies = [energy_function_system(ind, system) for ind in population]
+    energies = evaluate_population(population, system)
     
     for _ in range(generations):
         selected_indices = np.argsort(energies)[:population_size//2]
@@ -88,7 +96,7 @@ def genetic_algorithm(system, generations=10000, population_size=100, mutation_r
 
         offspring = [mutate(ind, mutation_rate) for ind in offspring]
         population = selected_population + offspring
-        energies = [energy_function_system(ind, system) for ind in population]
+        energies = evaluate_population(population, system)
         
         print("Current Best Energy:", min(energies))
     
