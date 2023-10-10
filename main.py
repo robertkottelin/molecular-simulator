@@ -33,7 +33,7 @@ def parse_pdb(file_path):
                 molecule.add_atom(Atom(symbol, x, y, z))
     return molecule
 
-def realistic_energy_function(coords, molecule):
+def energy_function(coords, molecule):
     """
     Calculate the potential energy of a molecule based on Lennard-Jones and Coulomb potential.
     :param coords: 1D array of atomic coordinates [x1, y1, z1, x2, y2, z2, ...]
@@ -89,7 +89,7 @@ def mutate(mol_coords, mutation_rate=0.1, mutation_scale=0.1):
 # Example Genetic Algorithm
 def genetic_algorithm(molecule, generations=10000, population_size=1000, mutation_rate=0.1):
     population = [np.array([atom.coordinate for atom in molecule.atoms]).flatten() for _ in range(population_size)]
-    energies = [realistic_energy_function(ind, molecule) for ind in population]
+    energies = [energy_function(ind, molecule) for ind in population]
     
     for _ in range(generations):
         # Selection: top half of the molecules are selected
@@ -111,7 +111,7 @@ def genetic_algorithm(molecule, generations=10000, population_size=1000, mutatio
         population = selected_population + offspring
         
         # Recalculate energies
-        energies = [realistic_energy_function(ind, molecule) for ind in population]
+        energies = [energy_function(ind, molecule) for ind in population]
         
         # Logging the current best energy value
         print("Current Best Energy:", min(energies))
