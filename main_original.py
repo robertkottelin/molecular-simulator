@@ -67,38 +67,6 @@ def coulomb_potential(q1, q2, r):
 def lennard_jones_potential(r, epsilon, sigma):
     return 4 * epsilon * ((sigma / r)**12 - (sigma / r)**6)
 
-def bond_stretching(atom1, atom2, params):
-    r = np.linalg.norm(atom1.coordinate - atom2.coordinate)
-    k, r_0 = params
-    return k * (r - r_0)**2
-
-def angle_bending(atom1, atom2, atom3, params):
-    vector1 = atom1.coordinate - atom2.coordinate
-    vector2 = atom3.coordinate - atom2.coordinate
-    cosine_angle = np.dot(vector1, vector2) / (np.linalg.norm(vector1) * np.linalg.norm(vector2))
-    angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))  # in radians
-    k, theta_0 = params
-    theta_0 = np.deg2rad(theta_0)  # converting to radians
-    return k * (angle - theta_0)**2
-
-def torsional(atom1, atom2, atom3, atom4, params):
-    # Compute vectors along the bonds
-    b1 = atom2.coordinate - atom1.coordinate
-    b2 = atom3.coordinate - atom2.coordinate
-    b3 = atom4.coordinate - atom3.coordinate
-    
-    # Compute normal vectors
-    n1 = np.cross(b1, b2)
-    n2 = np.cross(b2, b3)
-    
-    # Compute torsion angle
-    cosine_phi = np.dot(n1, n2) / (np.linalg.norm(n1) * np.linalg.norm(n2))
-    phi = np.arccos(np.clip(cosine_phi, -1.0, 1.0))  # in radians
-    
-    V_n, phi_0, n = params
-    phi_0 = np.deg2rad(phi_0)  # converting to radians
-    return V_n * (1 + np.cos(n*phi - phi_0))
-
 def energy_function_system(coords, system, bond_params, angle_params, dihedral_params):
     energy = 0.0
     all_atoms = system.get_all_atoms()
